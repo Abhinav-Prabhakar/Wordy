@@ -70,4 +70,4 @@ export WORDNIK_API_KEY="your_api_key_here"
 
 ## 📜 License
 
-MIT © [Antigravity](https://github.com/wordy-tui)
+MIT © Wordy Contributors
