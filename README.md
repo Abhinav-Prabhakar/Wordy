@@ -28,7 +28,7 @@
 
 ```bash
 # Clone the repository
-git clone https://github.com/wordy-tui/wordy.git
+git clone https://github.com/Abhinav-Prabhakar/Wordy.git
 cd wordy
 
 # Build and run
