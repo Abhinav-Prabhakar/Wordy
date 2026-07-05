@@ -5,6 +5,8 @@
 ![Wordy Banner](https://img.shields.io/badge/TUI-Bubble%20Tea%20%26%20Lip%20Gloss-A78BFA?style=for-the-badge)
 ![Go Version](https://img.shields.io/badge/Go-1.26+-00ADD8?style=for-the-badge&logo=go)
 
+![Wordy Screenshot](screenshot.png)
+
 ---
 
 ## ✨ Features
