@@ -1,0 +1,14 @@
+# Binaries
+wordy
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test coverage / temp
+*.test
+*.out
+
+# User local data & cache
+.DS_Store

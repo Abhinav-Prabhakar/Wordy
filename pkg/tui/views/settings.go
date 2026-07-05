@@ -23,7 +23,7 @@ func RenderSettingsView(
 ) string {
 	var sb strings.Builder
 
-	header := lipgloss.NewStyle().Bold(true).Foreground(styles.ColorPurple).Render("⚙️  Wordy Configuration & API Settings")
+	header := lipgloss.NewStyle().Bold(true).Foreground(styles.ColorLavender).Render("⚙️  Wordy Configuration & API Settings")
 	sb.WriteString(header + "\n\n")
 
 	// API Key Section
@@ -35,7 +35,7 @@ func RenderSettingsView(
 	sb.WriteString("API Key: " + apiKeyInput.View() + "\n\n")
 
 	// Rate Limits Section
-	sb.WriteString(styles.SectionHeaderStyle.Render("⚡ API Rate-Limit Status"))
+	sb.WriteString(styles.SectionHeaderStyle.Render("⚡ API Rate-Limit Quota"))
 	sb.WriteString("\n")
 	rateStr := fmt.Sprintf(
 		"Minute: %d / %d calls remaining  │  Hour: %d / %d calls remaining",
@@ -48,15 +48,15 @@ func RenderSettingsView(
 	sb.WriteString(lipgloss.NewStyle().Foreground(styles.ColorCyan).Render(rateStr) + "\n\n")
 
 	// Storage & Cache Section
-	sb.WriteString(styles.SectionHeaderStyle.Render("💾 Local Storage & Cache"))
+	sb.WriteString(styles.SectionHeaderStyle.Render("💾 Local Storage & Disk Cache"))
 	sb.WriteString("\n")
-	sb.WriteString(fmt.Sprintf("Cached Word Definitions: %d terms stored in ~/.cache/wordy/\n", cachedCount))
-	sb.WriteString("User Progress DB Path: " + storage.GetDataPath() + "\n\n")
+	sb.WriteString(fmt.Sprintf("Cached Terms: %d stored in ~/.cache/wordy/cache.json\n", cachedCount))
+	sb.WriteString("Database Path: " + storage.GetDataPath() + "\n\n")
 
 	// Controls legend
 	sb.WriteString(styles.SectionHeaderStyle.Render("⌨️ Actions"))
 	sb.WriteString("\n")
-	sb.WriteString(lipgloss.NewStyle().Foreground(styles.ColorPink).Render("[ENTER] Save API Key & Settings   │   [c] Clear Local Cache"))
+	sb.WriteString(lipgloss.NewStyle().Foreground(styles.ColorPink).Render("[ENTER] Save Key & Settings   │   [c] Clear Disk Cache"))
 	sb.WriteString("\n\n")
 
 	if statusMsg != "" {
@@ -64,9 +64,9 @@ func RenderSettingsView(
 	}
 
 	cardWidth := width - 4
-	if cardWidth < 40 {
-		cardWidth = 40
+	if cardWidth < 36 {
+		cardWidth = 36
 	}
 
-	return styles.CardBoxStyle.Width(cardWidth).Render(sb.String())
+	return styles.MainBoxStyle.Width(cardWidth).Render(sb.String())
 }

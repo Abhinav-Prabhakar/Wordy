@@ -14,24 +14,21 @@ type RelatedWordItem struct {
 	Word    string
 }
 
-// RenderExploreView builds the word detail and related word link explorer layout.
-func RenderExploreView(
+// RenderExploreContent generates the inner text content for the Explore viewport.
+func RenderExploreContent(
 	details seed.WordDetails,
 	relatedItems []RelatedWordItem,
 	focusedRelIndex int,
 	isBookmarked bool,
 	width int,
-	height int,
 ) string {
 	if details.Word == "" {
-		return styles.CardBoxStyle.Width(width - 4).Render(
-			lipgloss.NewStyle().Foreground(styles.ColorMuted).Render("Select a word from the list to explore definitions, frequency stats, and related words."),
-		)
+		return lipgloss.NewStyle().Foreground(styles.ColorMuted).Render("Select a word from the left list to inspect definitions, frequency stats, and related words.")
 	}
 
 	var sb strings.Builder
 
-	// Header line: Word, Bookmark, Phonetic, Pos Badge, Rarity Badge
+	// Header line: Word Title, Bookmark, Phonetic, POS, Rarity
 	bookmarkStar := "☆"
 	if isBookmarked {
 		bookmarkStar = lipgloss.NewStyle().Foreground(styles.ColorAmber).Render("★")
@@ -48,9 +45,9 @@ func RenderExploreView(
 	sb.WriteString(lipgloss.JoinHorizontal(lipgloss.Center, title, "  ", phonetic, "  ", posBadge, "  ", rarityBadge))
 	sb.WriteString("\n\n")
 
-	// Frequency meter bar
-	freqBar := styles.RenderFrequencyBar(details.CorpusCount, details.ZipfScore, 20)
-	sb.WriteString(lipgloss.NewStyle().Foreground(styles.ColorSubtle).Render("Corpus Usage: ") + freqBar + "\n\n")
+	// Frequency Meter
+	freqBar := styles.RenderFrequencyBar(details.CorpusCount, details.ZipfScore, 16)
+	sb.WriteString(lipgloss.NewStyle().Foreground(styles.ColorSubtle).Render("Corpus Frequency: ") + freqBar + "\n\n")
 
 	// Definitions Section
 	sb.WriteString(styles.SectionHeaderStyle.Render("📖 Definitions"))
@@ -66,10 +63,10 @@ func RenderExploreView(
 		}
 	}
 
-	// Examples Section
+	// Usage Examples Section
 	if len(details.Examples) > 0 {
 		sb.WriteString("\n")
-		sb.WriteString(styles.SectionHeaderStyle.Render("💬 Usage Examples"))
+		sb.WriteString(styles.SectionHeaderStyle.Render("💬 Examples"))
 		sb.WriteString("\n")
 		for _, ex := range details.Examples {
 			sb.WriteString(styles.ExampleTextStyle.Render(fmt.Sprintf("“%s”", ex.Text)))
@@ -81,13 +78,13 @@ func RenderExploreView(
 		}
 	}
 
-	// Related Words Interactive Explorer Section
+	// Related Words Cluster Section
 	sb.WriteString("\n")
 	sb.WriteString(styles.SectionHeaderStyle.Render("🔗 Related Words (Press Enter to Jump)"))
 	sb.WriteString("\n")
 
 	if len(relatedItems) == 0 {
-		sb.WriteString(styles.DefinitionTextStyle.Render(lipgloss.NewStyle().Foreground(styles.ColorMuted).Render("No related words linked for this term.")))
+		sb.WriteString(styles.DefinitionTextStyle.Render(lipgloss.NewStyle().Foreground(styles.ColorMuted).Render("No related terms linked for this word.")))
 		sb.WriteString("\n")
 	} else {
 		var pills []string
@@ -102,10 +99,9 @@ func RenderExploreView(
 			}
 		}
 
-		// Wrap pills nicely
 		line := ""
 		for _, p := range pills {
-			if len(line)+lipgloss.Width(p) > width-10 {
+			if len(line)+lipgloss.Width(p) > width-8 {
 				sb.WriteString("  " + line + "\n")
 				line = p + " "
 			} else {
@@ -120,13 +116,8 @@ func RenderExploreView(
 	// Source Attribution
 	if details.AttributionText != "" {
 		sb.WriteString("\n")
-		sb.WriteString(styles.AttributionStyle.Render("Attribution: " + details.AttributionText))
+		sb.WriteString(styles.AttributionStyle.Render("Source: " + details.AttributionText))
 	}
 
-	cardWidth := width - 4
-	if cardWidth < 40 {
-		cardWidth = 40
-	}
-
-	return styles.CardBoxStyle.Width(cardWidth).Render(sb.String())
+	return sb.String()
 }

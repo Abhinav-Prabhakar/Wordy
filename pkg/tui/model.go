@@ -7,6 +7,7 @@ import (
 
 	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/bubbles/textinput"
+	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/wordy-tui/wordy/pkg/api"
@@ -27,7 +28,6 @@ func (i wordListItem) Title() string       { return i.word }
 func (i wordListItem) Description() string { return fmt.Sprintf("%s • %s", i.pos, i.rarityTier) }
 func (i wordListItem) FilterValue() string { return i.word }
 
-// Messages
 type wordFetchedMsg struct {
 	details seed.WordDetails
 	err     error
@@ -37,10 +37,11 @@ type Model struct {
 	cfg                 storage.Config
 	store               *storage.Store
 	apiClient           *api.Client
-	activeTab           int // 0: Explore, 1: Review, 2: Network, 3: Settings
+	activeTab           int // 0: Explore, 1: Review, 2: Settings
 	width               int
 	height              int
 	wordList            list.Model
+	exploreViewport     viewport.Model
 	apiKeyInput         textinput.Model
 	selectedWord        string
 	selectedWordDetails seed.WordDetails
@@ -77,25 +78,27 @@ func NewModel() (*Model, error) {
 		}
 	}
 
-	l := list.New(items, list.NewDefaultDelegate(), 30, 20)
-	l.Title = "🧋 Wordy Vocabulary"
+	l := list.New(items, list.NewDefaultDelegate(), 28, 20)
+	l.Title = "🧋 Vocabulary"
 	l.SetShowHelp(false)
 
-	// Prepare API key input
+	vp := viewport.New(60, 20)
+
 	ti := textinput.New()
 	ti.Placeholder = "Enter Wordnik API Key..."
 	ti.SetValue(cfg.WordnikAPIKey)
 	ti.CharLimit = 128
-	ti.Width = 40
+	ti.Width = 36
 
 	m := &Model{
-		cfg:         cfg,
-		store:       store,
-		apiClient:   apiClient,
-		activeTab:   0,
-		wordList:    l,
-		apiKeyInput: ti,
-		wordHistory: make([]string, 0),
+		cfg:             cfg,
+		store:           store,
+		apiClient:       apiClient,
+		activeTab:       0,
+		wordList:        l,
+		exploreViewport: vp,
+		apiKeyInput:     ti,
+		wordHistory:     make([]string, 0),
 	}
 
 	m.refreshSRSQueue()
@@ -148,7 +151,6 @@ func (m *Model) loadWord(word string) tea.Cmd {
 
 	m.selectedWord = wordLower
 
-	// Add to navigation history if not duplicate of top
 	if len(m.wordHistory) == 0 || m.wordHistory[len(m.wordHistory)-1] != wordLower {
 		m.wordHistory = append(m.wordHistory, wordLower)
 	}
@@ -163,6 +165,18 @@ func (m *Model) Init() tea.Cmd {
 	return nil
 }
 
+func (m *Model) updateViewportContent() {
+	isBookmarked := m.store.IsBookmarked(m.selectedWord)
+	content := views.RenderExploreContent(
+		m.selectedWordDetails,
+		m.relatedItems,
+		m.focusedRelIndex,
+		isBookmarked,
+		m.exploreViewport.Width,
+	)
+	m.exploreViewport.SetContent(content)
+}
+
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 
@@ -170,12 +184,26 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
-		m.wordList.SetSize(32, msg.Height-6)
+
+		contentHeight := msg.Height - 6
+		if contentHeight < 10 {
+			contentHeight = 10
+		}
+
+		sidebarWidth := 30
+		m.wordList.SetSize(sidebarWidth, contentHeight)
+
+		vpWidth := msg.Width - sidebarWidth - 6
+		if vpWidth < 30 {
+			vpWidth = 30
+		}
+		m.exploreViewport.Width = vpWidth
+		m.exploreViewport.Height = contentHeight - 2
+		m.updateViewportContent()
 
 	case wordFetchedMsg:
 		if msg.err == nil {
 			m.selectedWordDetails = msg.details
-			// Build related items list
 			items := make([]views.RelatedWordItem, 0)
 			for relType, words := range msg.details.RelatedWords {
 				for _, w := range words {
@@ -187,12 +215,13 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			m.relatedItems = items
 			m.focusedRelIndex = 0
+			m.updateViewportContent()
 		} else {
 			m.toastMsg = "API Error: " + msg.err.Error()
 		}
 
 	case tea.KeyMsg:
-		// Global Keys
+		// Global Navigation Keys
 		switch msg.String() {
 		case "ctrl+c", "q":
 			if !m.apiKeyInput.Focused() && !m.wordList.SettingFilter() {
@@ -201,74 +230,79 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		case "tab":
 			if !m.apiKeyInput.Focused() {
-				m.activeTab = (m.activeTab + 1) % 4
+				m.activeTab = (m.activeTab + 1) % 3
 				return m, nil
 			}
 
 		case "shift+tab":
 			if !m.apiKeyInput.Focused() {
-				m.activeTab = (m.activeTab + 3) % 4
+				m.activeTab = (m.activeTab + 2) % 3
 				return m, nil
 			}
 
-		case "1", "2", "3", "4":
-			// If in Review tab and card is flipped, rate recall!
+		case "1", "2", "3":
 			if m.activeTab == 1 && m.isCardFlipped && len(m.srsDueWords) > 0 {
 				rating := srs.Rating(msg.String()[0] - '0')
 				m.submitSRSRating(rating)
 				return m, nil
 			} else if !m.apiKeyInput.Focused() && !m.wordList.SettingFilter() {
-				// Switch tab shortcuts
 				m.activeTab = int(msg.String()[0] - '1')
+				return m, nil
+			}
+
+		case "4":
+			if m.activeTab == 1 && m.isCardFlipped && len(m.srsDueWords) > 0 {
+				m.submitSRSRating(srs.RatingEasy)
 				return m, nil
 			}
 
 		case "backspace":
 			if m.activeTab == 0 && len(m.wordHistory) > 1 && !m.wordList.SettingFilter() {
-				// Pop current word and go back
 				m.wordHistory = m.wordHistory[:len(m.wordHistory)-1]
 				prevWord := m.wordHistory[len(m.wordHistory)-1]
 				return m, m.loadWord(prevWord)
 			}
 		}
 
-		// Tab-specific key handling
+		// Mode Specific Keys
 		switch m.activeTab {
-		case 0: // Explore Tab
+		case 0: // Explore
 			if msg.String() == "b" && !m.wordList.SettingFilter() {
 				m.store.ToggleBookmark(m.selectedWord)
+				m.updateViewportContent()
 				return m, nil
 			}
 			if msg.String() == "left" || msg.String() == "h" {
 				if m.focusedRelIndex > 0 {
 					m.focusedRelIndex--
+					m.updateViewportContent()
 				}
 				return m, nil
 			}
 			if msg.String() == "right" || msg.String() == "l" {
 				if m.focusedRelIndex < len(m.relatedItems)-1 {
 					m.focusedRelIndex++
+					m.updateViewportContent()
 				}
 				return m, nil
 			}
 			if msg.String() == "enter" && len(m.relatedItems) > 0 && !m.wordList.SettingFilter() {
-				// Jump to selected related word!
 				targetWord := m.relatedItems[m.focusedRelIndex].Word
 				return m, m.loadWord(targetWord)
 			}
 
-		case 1: // Review Tab
+		case 1: // Review
 			if msg.String() == " " {
 				m.isCardFlipped = !m.isCardFlipped
 				return m, nil
 			}
 
-		case 3: // Settings Tab
+		case 2: // Settings
 			if msg.String() == "enter" {
 				m.cfg.WordnikAPIKey = strings.TrimSpace(m.apiKeyInput.Value())
 				_ = storage.SaveConfig(m.cfg)
 				m.apiClient.SetAPIKey(m.cfg.WordnikAPIKey)
-				m.statusMsg = "Settings saved successfully!"
+				m.statusMsg = "Settings saved!"
 				m.apiKeyInput.Blur()
 				return m, nil
 			}
@@ -282,7 +316,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	}
 
-	// Update active component
+	// Route events to active components
 	if m.activeTab == 0 {
 		var cmd tea.Cmd
 		m.wordList, cmd = m.wordList.Update(msg)
@@ -293,7 +327,10 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				cmds = append(cmds, m.loadWord(selectedItem.word))
 			}
 		}
-	} else if m.activeTab == 3 {
+
+		m.exploreViewport, cmd = m.exploreViewport.Update(msg)
+		cmds = append(cmds, cmd)
+	} else if m.activeTab == 2 {
 		var cmd tea.Cmd
 		m.apiKeyInput, cmd = m.apiKeyInput.Update(msg)
 		cmds = append(cmds, cmd)
@@ -329,47 +366,38 @@ func (m *Model) View() string {
 
 	var sb strings.Builder
 
-	// Top Bar: Logo, Tabs, API Status
-	title := styles.AppTitleStyle.Render("🧋 Wordy")
+	// Top Bar
+	title := styles.LogoStyle.Render("🧋 Wordy")
 
-	tabs := []string{"[1] Explore", "[2] Review (SRS)", "[3] Network", "[4] Settings"}
+	tabs := []string{"[1] Explore", "[2] Review (SRS)", "[3] Settings"}
 	tabView := ""
 	for i, t := range tabs {
 		if i == m.activeTab {
-			tabView += styles.TabActiveStyle.Render(t) + "  "
+			tabView += styles.TabActiveStyle.Render(t)
 		} else {
-			tabView += styles.TabInactiveStyle.Render(t) + "  "
+			tabView += styles.TabInactiveStyle.Render(t)
 		}
 	}
 
-	// Status pill
 	rl := m.apiClient.GetRateLimitInfo()
 	statusPill := ""
 	if m.cfg.WordnikAPIKey == "" {
-		statusPill = styles.StatusPillSeed.Render("🍃 Offline Seed Mode")
+		statusPill = styles.PillSeed.Render("🍃 Seed Mode")
 	} else if rl.IsRateLimited {
-		statusPill = styles.StatusPillRateLimit.Render("⚡ Rate Limited (429)")
+		statusPill = styles.PillRateLimit.Render("⚡ Rate Limited")
 	} else {
-		statusPill = styles.StatusPillOnline.Render(fmt.Sprintf("⚡ API: %d/50 rem", rl.RemainingMinute))
+		statusPill = styles.PillOnline.Render(fmt.Sprintf("⚡ API: %d rem", rl.RemainingMinute))
 	}
 
 	topHeader := lipgloss.JoinHorizontal(lipgloss.Center, title, " ", tabView, "  ", statusPill)
 	sb.WriteString(topHeader + "\n\n")
 
-	// Main Layout Split
+	// Content Area Bounded strictly by Viewport Height
 	switch m.activeTab {
 	case 0: // Explore
 		sidebar := m.wordList.View()
-		isBookmarked := m.store.IsBookmarked(m.selectedWord)
-		mainCard := views.RenderExploreView(
-			m.selectedWordDetails,
-			m.relatedItems,
-			m.focusedRelIndex,
-			isBookmarked,
-			m.width-36,
-			m.height-8,
-		)
-		content := lipgloss.JoinHorizontal(lipgloss.Top, sidebar, "  ", mainCard)
+		cardView := styles.MainBoxStyle.Width(m.exploreViewport.Width).Render(m.exploreViewport.View())
+		content := lipgloss.JoinHorizontal(lipgloss.Top, sidebar, "  ", cardView)
 		sb.WriteString(content)
 
 	case 1: // Review SRS
@@ -385,11 +413,7 @@ func (m *Model) View() string {
 		)
 		sb.WriteString(reviewView)
 
-	case 2: // Network
-		netView := views.RenderNetworkView(m.selectedWordDetails, m.focusedRelIndex, m.width-4, m.height-8)
-		sb.WriteString(netView)
-
-	case 3: // Settings
+	case 2: // Settings
 		cachedCount := len(api.NewDiskCache().Items)
 		settView := views.RenderSettingsView(
 			m.cfg,
@@ -403,19 +427,10 @@ func (m *Model) View() string {
 		sb.WriteString(settView)
 	}
 
-	// Footer Help Bar
+	// Bottom Help Bar
 	sb.WriteString("\n")
-	help := styles.HelpFooterStyle.Render(
-		styles.KeyStyle.Render("Tab") + " switch view • " +
-			styles.KeyStyle.Render("↑/↓") + " select word • " +
-			styles.KeyStyle.Render("←/→") + " select related • " +
-			styles.KeyStyle.Render("Enter") + " jump to word • " +
-			styles.KeyStyle.Render("Space") + " flip card • " +
-			styles.KeyStyle.Render("1-4") + " rate recall • " +
-			styles.KeyStyle.Render("b") + " bookmark • " +
-			styles.KeyStyle.Render("q") + " quit",
-	)
-	sb.WriteString(help)
+	helpText := "Tab view • ↑/↓ navigate list • ←/→ select related • Enter jump • Space flip card • 1-4 rate • b bookmark • q quit"
+	sb.WriteString(styles.HelpBar.Width(m.width).Render(helpText))
 
 	return sb.String()
 }

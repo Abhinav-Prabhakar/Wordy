@@ -10,7 +10,7 @@ import (
 	"github.com/wordy-tui/wordy/pkg/tui/styles"
 )
 
-// RenderReviewView renders the SRS flashcard review screen.
+// RenderReviewView renders the SRS flashcard review screen bounded by height.
 func RenderReviewView(
 	details seed.WordDetails,
 	card srs.CardState,
@@ -24,7 +24,7 @@ func RenderReviewView(
 	var mainContent strings.Builder
 
 	// Top stats bar
-	duePill := lipgloss.NewStyle().Foreground(styles.ColorWhite).Background(styles.ColorDeepPurple).Padding(0, 1).Bold(true).Render(fmt.Sprintf("Due Today: %d", dueCount))
+	duePill := lipgloss.NewStyle().Foreground(styles.ColorWhite).Background(styles.ColorPurple).Padding(0, 1).Bold(true).Render(fmt.Sprintf("Due Today: %d", dueCount))
 	masteredPill := lipgloss.NewStyle().Foreground(styles.ColorWhite).Background(styles.ColorMatcha).Padding(0, 1).Bold(true).Render(fmt.Sprintf("Mastered: %d", totalMastered))
 	streakPill := lipgloss.NewStyle().Foreground(styles.ColorWhite).Background(styles.ColorPink).Padding(0, 1).Bold(true).Render(fmt.Sprintf("Streak: 🔥 %d days", streakDays))
 
@@ -32,8 +32,7 @@ func RenderReviewView(
 	mainContent.WriteString(statsBar + "\n\n")
 
 	if dueCount == 0 && details.Word == "" {
-		// All cards reviewed for today
-		emptyCard := styles.CardBoxStyle.Width(width - 6).Render(
+		emptyCard := styles.MainBoxStyle.Width(width - 4).Render(
 			lipgloss.JoinVertical(
 				lipgloss.Center,
 				lipgloss.NewStyle().Bold(true).Foreground(styles.ColorMatcha).Render("🎉 All Reviews Completed!"),
@@ -61,7 +60,7 @@ func RenderReviewView(
 	cardBody.WriteString("\n\n")
 
 	// Frequency Bar
-	cardBody.WriteString(styles.RenderFrequencyBar(details.CorpusCount, details.ZipfScore, 18) + "\n\n")
+	cardBody.WriteString(styles.RenderFrequencyBar(details.CorpusCount, details.ZipfScore, 16) + "\n\n")
 
 	if !isFlipped {
 		// FRONT OF FLASHCARD
@@ -96,10 +95,10 @@ func RenderReviewView(
 		}
 
 		// Recall Rating Buttons (1-4)
-		cardBody.WriteString(styles.SectionHeaderStyle.Render("Rate Your Recall Quality:"))
+		cardBody.WriteString(styles.SectionHeaderStyle.Render("Rate Recall Quality:"))
 		cardBody.WriteString("\n\n")
 
-		btn1 := styles.BtnAgainStyle.Render("[1] Again (Reset)")
+		btn1 := styles.BtnAgainStyle.Render("[1] Again (1d)")
 		btn2 := styles.BtnHardStyle.Render("[2] Hard (1d)")
 		btn3 := styles.BtnGoodStyle.Render("[3] Good (6d)")
 		btn4 := styles.BtnEasyStyle.Render("[4] Easy (14d)")
@@ -108,9 +107,9 @@ func RenderReviewView(
 		cardBody.WriteString(ratingsBar)
 	}
 
-	cardWidth := width - 6
-	if cardWidth < 40 {
-		cardWidth = 40
+	cardWidth := width - 4
+	if cardWidth < 36 {
+		cardWidth = 36
 	}
 
 	mainContent.WriteString(styles.CardBoxActiveStyle.Width(cardWidth).Render(cardBody.String()))
