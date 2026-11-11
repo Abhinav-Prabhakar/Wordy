@@ -1,0 +1,59 @@
+name: Release
+on:
+  push:
+    tags: ["v*"]
+permissions:
+  contents: write
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Build archives
+        env:
+          VERSION: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          version="${VERSION#v}"
+          rm -rf dist
+          mkdir -p dist
+          specs=(".:wordy")
+          build() {
+            goos="$1"; goarch="$2"; out="$3"
+            dir="dist/${out}"
+            mkdir -p "$dir"
+            for spec in "${specs[@]}"; do
+              pkg="${spec%%:*}"
+              bin="${spec##*:}"
+              if [ "$goos" = windows ]; then bin="$bin.exe"; fi
+              GOOS="$goos" GOARCH="$goarch" CGO_ENABLED=0 \
+                go build -trimpath -ldflags "-s -w" -o "$dir/$bin" "$pkg"
+            done
+            cp README.md "$dir/" 2>/dev/null || true
+            if [ -f LICENSE ]; then cp LICENSE "$dir/"; fi
+            if [ "$goos" = windows ]; then
+              (cd "$dir" && zip -qr "../${out}.zip" *)
+            else
+              (cd "$dir" && tar -czf "../${out}.tar.gz" *)
+            fi
+          }
+          build darwin arm64 wordy-darwin-arm64
+          build darwin amd64 wordy-darwin-amd64
+          build linux arm64 wordy-linux-arm64
+          build linux amd64 wordy-linux-amd64
+          build windows amd64 wordy-windows-amd64
+          cd dist
+          for f in *.zip *.tar.gz; do sha256sum "$f" > "$f.sha256"; done
+          sha256sum *.zip *.tar.gz > sha256.sum
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/*.zip
+            dist/*.tar.gz
+            dist/*.sha256
+            dist/sha256.sum
+          generate_release_notes: true

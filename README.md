@@ -26,12 +26,32 @@
 
 ### Installation
 
-```bash
-# Clone the repository
-git clone https://github.com/Abhinav-Prabhakar/Wordy.git
-cd wordy
+Homebrew — macOS and Linux:
 
-# Build and run
+```bash
+brew install Abhinav-Prabhakar/tap/wordy
+```
+
+Windows:
+
+```powershell
+winget install AbhinavPrabhakar.Wordy
+```
+
+Or with Scoop:
+
+```powershell
+scoop bucket add abhinav https://github.com/Abhinav-Prabhakar/ScoopBucket
+scoop install wordy
+```
+
+Prebuilt archives for macOS, Linux, and Windows are on the [Releases page](https://github.com/Abhinav-Prabhakar/Wordy/releases).
+
+From source, with Go 1.26 or newer:
+
+```bash
+git clone https://github.com/Abhinav-Prabhakar/Wordy.git
+cd Wordy
 go build -o wordy main.go
 ./wordy
 ```
